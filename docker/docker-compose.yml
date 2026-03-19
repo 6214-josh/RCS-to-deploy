@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: rcs_postgres
+    environment:
+      POSTGRES_DB: rcs_db
+      POSTGRES_USER: rcs_user
+      POSTGRES_PASSWORD: rcs_password
+    ports:
+      - "8432:5432"
+    volumes:
+      - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+      - rcs_db_data:/var/lib/postgresql/data
+    networks:
+      - rcs-network
+
+  # 後端與前端通常在開發環境中手動啟動，或在此處定義 Dockerfile
+  # 為了方便使用者，這裡僅提供資料庫配置，並在說明文件中指導如何啟動應用
+
+networks:
+  rcs-network:
+    driver: bridge
+
+volumes:
+  rcs_db_data:

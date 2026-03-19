@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WES → RCS → AccuPick 測試頁</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#111; color:#f5f5f5; margin:0; }
+    .wrap { padding:16px; }
+    h1 { margin:0 0 8px; color:#ffb300; }
+    .hint { color:#ccc; margin-bottom:16px; }
+    .grid { display:grid; grid-template-columns: 1.1fr 1.3fr; gap:16px; }
+    .card { background:#1c1c1c; border:1px solid #333; border-radius:12px; padding:14px; }
+    .card h2 { margin:0 0 12px; font-size:18px; color:#ffb300; }
+    .row { display:grid; grid-template-columns: 180px 1fr; gap:8px; margin-bottom:8px; align-items:center; }
+    input, select, textarea, button { border-radius:8px; border:1px solid #555; padding:8px; font-size:14px; }
+    input, select, textarea { background:#0f0f0f; color:#fff; }
+    textarea { min-height:96px; width:100%; }
+    button { background:#ffb300; color:#111; font-weight:bold; cursor:pointer; }
+    button.secondary { background:#333; color:#fff; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+    .status { display:grid; grid-template-columns: repeat(5, 1fr); gap:8px; margin-bottom:16px; }
+    .pill { background:#222; border:1px solid #333; border-radius:10px; padding:10px; }
+    .pill b { display:block; color:#ffb300; font-size:12px; margin-bottom:4px; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th, td { border-bottom:1px solid #2f2f2f; padding:6px; text-align:left; vertical-align:top; }
+    th { color:#ffb300; position:sticky; top:0; background:#1c1c1c; }
+    .table-wrap { max-height:360px; overflow:auto; border:1px solid #2a2a2a; border-radius:8px; }
+    .mono { font-family: Consolas, monospace; white-space:pre-wrap; word-break:break-all; }
+    .ok { color:#7CFC8A; font-weight:bold; }
+    .ng { color:#ff6b6b; font-weight:bold; }
+    @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } .status { grid-template-columns: repeat(2,1fr); } .row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>WES → RCS → AccuPick 對測頁</h1>
+  <div class="hint">用途：專門看 WES 送到 RCS，再由 RCS 轉送 AccuPick 的流程。這頁不依賴原 React 前端，可直接由 Spring Boot 提供。</div>
+
+  <div class="status" id="statusBar"></div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>手動送測試命令</h2>
+      <div class="row"><label>模式</label><select id="mode"><option value="pick">一般揀貨</option><option value="pick/dbox">滿箱 / DBOX</option><option value="control">控制命令</option></select></div>
+      <div class="row"><label>CommandNo</label><input id="commandNo" value="DB01-TEST-001" /></div>
+      <div class="row"><label>OrderNo</label><input id="orderNo" value="ORD-TEST-001" /></div>
+      <div class="row"><label>OrderlineNo</label><input id="orderlineNo" value="1" /></div>
+      <div class="row"><label>DC_ID</label><input id="dcId" value="N1" /></div>
+      <div class="row"><label>WorkStation_ID</label><input id="workstationId" value="N101" /></div>
+      <div class="row"><label>Inbound_Carrier_ID</label><input id="inboundCarrierId" value="IN-A001" /></div>
+      <div class="row"><label>Product_ID</label><input id="productId" value="35010466" /></div>
+      <div class="row"><label>On_hand_qty</label><input id="onHandQty" type="number" value="10" /></div>
+      <div class="row"><label>Picking_qty</label><input id="pickingQty" type="number" value="5" /></div>
+      <div class="row"><label>Outbound_Carrier_ID</label><input id="outboundCarrierId" value="OUT-B001" /></div>
+      <div class="row"><label>ControlCode</label><input id="controlCode" value="DBXX" /></div>
+      <div class="actions">
+        <button onclick="sendCommand()">送到 RCS → AccuPick</button>
+        <button class="secondary" onclick="fillDb02()">帶入 DB02 範例</button>
+        <button class="secondary" onclick="fillDbxx()">帶入 DBXX 範例</button>
+      </div>
+      <div style="margin-top:12px;">
+        <b>最近回應</b>
+        <div id="lastResponse" class="mono" style="margin-top:8px; background:#0f0f0f; padding:10px; border-radius:8px; border:1px solid #333; min-height:100px;"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>最近 WES / RCS / AccuPick 流程</h2>
+      <div class="actions">
+        <button class="secondary" onclick="loadAll()">重新整理</button>
+      </div>
+      <div class="table-wrap" style="margin-top:12px;">
+        <table>
+          <thead>
+            <tr>
+              <th>時間</th><th>CommandNo</th><th>Control</th><th>Status</th><th>PickQty</th><th>ActualQty</th><th>Comment</th>
+            </tr>
+          </thead>
+          <tbody id="ordersBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:16px;">
+    <div class="card">
+      <h2>最近 TCP / REST Log</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>時間</th><th>方向</th><th>協定</th><th>類型</th><th>內容</th>
+            </tr>
+          </thead>
+          <tbody id="logsBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h2>對測說明</h2>
+      <ol>
+        <li>先確認 AccuPick TCP Server 已啟動，且 RCS 的 <span class="mono">rcs.accupick.host/port</span> 正確。</li>
+        <li>WES 送命令到 RCS 時，可用這頁同步看訂單狀態與 TCP log。</li>
+        <li>若看到 <span class="ng">COMM_TIMEOUT</span>，通常代表 RCS 沒連到 AccuPick，或 AccuPick 沒回 ACK。</li>
+        <li>兩三天後正式對測時，這頁可先拿來做單筆送測與 log 追蹤。</li>
+      </ol>
+      <div class="mono" id="healthDump" style="background:#0f0f0f; padding:10px; border-radius:8px; border:1px solid #333;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function fetchJson(url, options) {
+  const res = await fetch(url, options);
+  const text = await res.text();
+  try { return { ok: res.ok, status: res.status, body: JSON.parse(text) }; }
+  catch { return { ok: res.ok, status: res.status, body: text }; }
+}
+
+function val(id) { return document.getElementById(id).value; }
+function setVal(id, value) { document.getElementById(id).value = value; }
+
+function fillDb02() {
+  setVal('commandNo', 'DB02-TEST-001');
+  setVal('orderNo', 'ORD-DB02-001');
+  setVal('orderlineNo', '1');
+  setVal('dcId', 'N1');
+  setVal('workstationId', 'N101');
+  setVal('inboundCarrierId', 'IN-A002');
+  setVal('productId', '35010468');
+  setVal('onHandQty', '8');
+  setVal('pickingQty', '3');
+  setVal('outboundCarrierId', 'OUT-B002');
+  document.getElementById('mode').value = 'pick/dbox';
+}
+
+function fillDbxx() {
+  setVal('commandNo', 'CTRL-TEST-001');
+  setVal('dcId', 'N1');
+  setVal('workstationId', 'N101');
+  setVal('controlCode', 'DBXX');
+  document.getElementById('mode').value = 'control';
+}
+
+async function sendCommand() {
+  const mode = val('mode');
+  let url = '/api/v1/commands/' + mode;
+  let body;
+
+  if (mode === 'control') {
+    body = {
+      commandNo: val('commandNo'),
+      dcId: val('dcId'),
+      workstationId: val('workstationId'),
+      controlCode: val('controlCode')
+    };
+  } else {
+    body = {
+      commandNo: val('commandNo'),
+      orderNo: val('orderNo'),
+      orderlineNo: val('orderlineNo'),
+      dcId: val('dcId'),
+      workstationId: val('workstationId'),
+      inboundCarrierId: val('inboundCarrierId'),
+      productId: val('productId'),
+      onHandQty: Number(val('onHandQty')),
+      pickingQty: Number(val('pickingQty')),
+      outboundCarrierId: val('outboundCarrierId')
+    };
+  }
+
+  const result = await fetchJson(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  document.getElementById('lastResponse').textContent = JSON.stringify(result, null, 2);
+  await loadAll();
+}
+
+function renderStatus(health) {
+  const items = [
+    ['AccuPick Host', health.accupickHost || '-'],
+    ['AccuPick Port', health.accupickPort || '-'],
+    ['WES Callback', health.wesBaseUrl || '-'],
+    ['Processing', health.processingCount || 0],
+    ['COMM_TIMEOUT', health.timeoutCount || 0]
+  ];
+  document.getElementById('statusBar').innerHTML = items.map(([k,v]) => `<div class="pill"><b>${k}</b><span>${v}</span></div>`).join('');
+  document.getElementById('healthDump').textContent = JSON.stringify(health, null, 2);
+}
+
+function renderOrders(rows) {
+  document.getElementById('ordersBody').innerHTML = rows.map(row => {
+    const statusClass = (row.commandStatus || '').includes('OK') ? 'ok' : ((row.commandStatus || '').includes('NG') || (row.commandStatus || '').includes('TIMEOUT') ? 'ng' : '');
+    return `<tr>
+      <td>${row.createdAt || ''}</td>
+      <td>${row.commandNo || ''}</td>
+      <td>${row.commandControlCode || ''}</td>
+      <td class="${statusClass}">${row.commandStatus || ''}</td>
+      <td>${row.pickingQty ?? ''}</td>
+      <td>${row.actualQty ?? ''}</td>
+      <td>${row.comment || ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderLogs(rows) {
+  document.getElementById('logsBody').innerHTML = rows.map(row => `<tr>
+    <td>${row.timestamp || ''}</td>
+    <td>${row.direction || ''}</td>
+    <td>${row.protocol || ''}</td>
+    <td>${row.messageType || ''}</td>
+    <td class="mono">${escapeHtml(row.content || '')}</td>
+  </tr>`).join('');
+}
+
+function escapeHtml(s) {
+  return s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+
+async function loadAll() {
+  const [health, orders, logs] = await Promise.all([
+    fetchJson('/api/v1/bridge/health'),
+    fetchJson('/api/v1/bridge/orders?limit=30'),
+    fetchJson('/api/v1/bridge/logs?limit=80')
+  ]);
+  if (health.ok) renderStatus(health.body);
+  if (orders.ok) renderOrders(orders.body);
+  if (logs.ok) renderLogs(logs.body);
+}
+
+loadAll();
+setInterval(loadAll, 5000);
+</script>
+</body>
+</html>
