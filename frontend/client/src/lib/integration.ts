@@ -1,3 +1,4 @@
+import { wsUrl } from '@/lib/api';
 export type SocketTarget = 'wes' | 'accupick';
 
 export interface WesOrder {
@@ -181,13 +182,13 @@ export function getDefaultSettings(): Record<SocketTarget, SocketTargetConfig> {
   return {
     wes: {
       endpointUrl: '/api/socket/wes/send',
-      websocketUrl: 'ws://localhost:8080/ws/wes',
+      websocketUrl: wsUrl('/ws/wes'),
       autoEnabled: false,
       intervalSec: 10,
     },
     accupick: {
       endpointUrl: '/api/socket/accupick/send',
-      websocketUrl: 'ws://localhost:8080/ws/accupick',
+      websocketUrl: wsUrl('/ws/accupick'),
       autoEnabled: false,
       intervalSec: 8,
     },

@@ -13,7 +13,7 @@ import {
   Truck,
   ArrowRightLeft,
 } from 'lucide-react';
-import { createCommand, fetchDbStatus, injectMockAck } from '@/lib/api';
+import { apiUrl, createCommand, fetchDbStatus, injectMockAck } from '@/lib/api';
 import { useDashboardSocket } from '@/hooks/useDashboardSocket';
 import { PickingOrder, WesCommandForm } from '@/types/dashboard';
 
@@ -167,20 +167,20 @@ export default function Dashboard() {
 
   const loadApiLogs = async () => {
     try {
-      const response = await fetch('/api/logs');
+      const response = await fetch(apiUrl('/api/logs'));
       if (!response.ok) {
         throw new Error(`GET /api/logs ${response.status}`);
       }
       const data = await response.json();
       setApiLogs(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('load /api/logs failed', error);
+      console.error(`load ${apiUrl('/api/logs')} failed`, error);
       setApiLogs([]);
     }
   };
 
   useEffect(() => {
-    loadApiLogs();
+    //loadApiLogs();
     const timer = window.setInterval(loadApiLogs, 3000);
     return () => window.clearInterval(timer);
   }, []);

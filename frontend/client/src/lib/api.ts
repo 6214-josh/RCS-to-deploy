@@ -1,9 +1,36 @@
 import { CommunicationLog, DashboardSummary, PickingOrder, WesCommandForm } from '@/types/dashboard';
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
+function getDefaultApiBase() {
+  const envBase = import.meta.env.VITE_API_BASE_URL;
+  if (envBase) {
+    return envBase.replace(/\/$/, '');
+  }
+
+  if (typeof window === 'undefined') {
+    return 'http://localhost:8088';
+  }
+
+  const current = new URL(window.location.origin);
+  const backendPort = import.meta.env.VITE_BACKEND_PORT || '8088';
+
+  // 前後端分開部署時，預設改抓同主機的 8088，避免 build 後還寫死 localhost:8080
+  if (current.port && current.port !== backendPort) {
+    current.port = backendPort;
+  } else if (!current.port) {
+    current.port = backendPort;
+  }
+
+  return current.origin.replace(/\/$/, '');
+}
+
+const API_BASE = getDefaultApiBase();
+
+export function apiUrl(path: string) {
+  return `${API_BASE}${path}`;
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(apiUrl(path), {
     headers: {
       'Content-Type': 'application/json',
       ...(init?.headers || {}),
